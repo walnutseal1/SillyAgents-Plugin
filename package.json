@@ -1,0 +1,17 @@
+{
+  "name": "sillyagents-server-plugin",
+  "version": "0.1.0",
+  "description": "SillyAgents server plugin for SillyTavern - autonomous agentic loops and agent skills",
+  "main": "index.js",
+  "author": "SillyAgents Contributors",
+  "license": "Apache 2.0 License",
+  "dependencies": {
+    "adm-zip": "^0.5.10"
+  },
+  "keywords": [
+    "sillytavern",
+    "plugin",
+    "agents",
+    "automation"
+  ]
+}
