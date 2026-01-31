@@ -28,8 +28,6 @@ Restart your SillyTavern server to initialize the plugin.
 The plugin manages data in the following directory structure:
 ```
 data/sillyagents/subroutines/: Configuration files for automated loops.
-```
-```
 data/sillyagents/skills/: Storage for imported and validated Agent Skills.
 ```
 ## Core Responsibilities
@@ -43,6 +41,7 @@ Macro Processing: Intercepts and replaces dynamic placeholders (Hardware, Contex
 
 ## API Reference
 Subroutines
+```
 GET /api/plugins/sillyagents/subroutines Returns a list of all configured subroutines.
 
 POST /api/plugins/sillyagents/subroutines Creates a new subroutine. Body:
@@ -57,6 +56,7 @@ JSON
     "autoQueue": true
   }
 }
+```
 Skills
 ```
 GET /api/plugins/sillyagents/skills Returns all installed skills.
@@ -82,12 +82,10 @@ sillyagents-plugin/
 ├── package.json    # Dependencies
 └── README.md       # Backend documentation
 ```
-Testing
+## Testing
 Start SillyTavern with the --debug flag.
 
 Monitor the server console for "SillyAgents Plugin Loaded" logs.
 
 Verify API responsiveness using a tool like Postman or cURL.
 
-License
-Apache 2.0 License
