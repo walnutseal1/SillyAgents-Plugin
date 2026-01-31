@@ -4,27 +4,27 @@ This is the server-side component for SillyAgents. It provides the core logic, f
 Note: To interact with this plugin via a user interface, you must also install the SillyAgents Extension.
 
 ## Installation
-1. Plugin Placement
+1. Plugin Placement: 
 Copy the sillyagents-plugin folder into your SillyTavern plugins directory.
 
-2. Enable Server Plugins
+2. Enable Server Plugins: 
 Ensure server-side plugins are enabled in your SillyTavern config.yaml file:
 
 ```YAML
 enableServerPlugins: true
 ```
 
-3. Install Dependencies
+3. Install Dependencies: 
 Navigate to the plugin directory and install the required Node.js packages:
 
 ```Bash
 cd plugins/sillyagents-plugin
 npm install
 ```
-4. Restart
+4. Restart: 
 Restart your SillyTavern server to initialize the plugin.
 
-Architecture
+## Architecture
 File Storage
 The plugin manages data in the following directory structure:
 ```
