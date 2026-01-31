@@ -1,7 +1,7 @@
 SillyAgents Plugin (Backend)
 This is the server-side component for SillyAgents. It provides the core logic, file management, and API endpoints required for autonomous agentic loops and skill management within SillyTavern.
 
-Note: To interact with this plugin via a user interface, you must also install the SillyAgents Extension.
+Note: To interact with this plugin via a user interface, you must also install the (SillyAgents Extension)[https://github.com/walnutseal1/SillyAgents].
 
 ## Installation
 1. Plugin Placement: 
