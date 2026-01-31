@@ -25,7 +25,6 @@ npm install
 Restart your SillyTavern server to initialize the plugin.
 
 ## Architecture
-File Storage
 The plugin manages data in the following directory structure:
 ```
 data/sillyagents/subroutines/: Configuration files for automated loops.
