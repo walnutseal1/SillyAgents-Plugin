@@ -1,5 +1,3 @@
-Here is the streamlined Plugin README. This version focuses on the server-side logic, installation, and the technical API details, serving as the "Engine Room" for the project.
-
 SillyAgents Plugin (Backend)
 This is the server-side component for SillyAgents. It provides the core logic, file management, and API endpoints required for autonomous agentic loops and skill management within SillyTavern.
 
