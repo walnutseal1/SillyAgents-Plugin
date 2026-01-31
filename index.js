@@ -140,7 +140,11 @@ function createSubroutineMetadata(config) {
             id: config.id || generateId(),
             triggerType: config.triggerType,
             active: config.active || false,
-            
+            // Trigger prompt
+            triggerText: config.triggerText || null,           // ← main addition
+            triggerRole: config.triggerRole || "user",         // "user" | "system" | "assistant"
+            // optional fallback if triggerText is empty
+            fallbackTriggerText: config.fallbackTriggerText,
             // Trigger-specific config
             interval: config.interval, // for time-based and tool-based
             toolName: config.toolName, // for tool-based
