@@ -18,6 +18,8 @@ let PLUGIN_DIR;
 let SKILLS_DIR;
 let DATA_ROOT;
 
+// Macros are handled by the extension side's macros.js
+
 /**
  * Initialize the plugin
  * @param {import('express').Router} router - Express router
@@ -537,27 +539,6 @@ function registerSkillRoutes(router) {
             res.json({ success: true });
         } catch (error) {
             console.error('[SillyAgents] Error deleting skill:', error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-}
-
-/**
- * Register macro-related routes
- * @param {import('express').Router} router
- */
-function registerMacroRoutes(router) {
-    // Process macros in text
-    router.post('/macros/process', async (req, res) => {
-        try {
-            const { text, context } = req.body;
-            
-            // TODO: Implement macro processing
-            const processed = text; // Placeholder
-            
-            res.json({ processed });
-        } catch (error) {
-            console.error('[SillyAgents] Error processing macros:', error);
             res.status(500).json({ error: error.message });
         }
     });
