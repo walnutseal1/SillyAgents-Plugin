@@ -18,6 +18,9 @@ let PLUGIN_DIR;
 let SKILLS_DIR;
 let DATA_ROOT;
 
+// Active triggers management
+const activeTriggers = new Map(); // key: `${characterName}|${chatName}`
+
 // Macros are handled by the extension side's macros.js
 
 /**
@@ -54,7 +57,13 @@ async function init(router) {
  */
 async function exit() {
     console.log('[SillyAgents] Shutting down...');
-    // TODO: Stop all active triggers/timers
+    // Stop all active triggers
+    for (const [key, job] of activeTriggers.entries()) {
+        if (job.type === 'interval') {
+            clearInterval(job.timer);
+        }
+        activeTriggers.delete(key);
+    }
     return Promise.resolve();
 }
 
@@ -139,7 +148,7 @@ function createSubroutineMetadata(config) {
         subroutine_config: {
             id: config.id || generateId(),
             triggerType: config.triggerType,
-            active: config.active || false,
+            active: config.active ?? false,
             // Trigger prompt
             triggerText: config.triggerText || null,           // ← main addition
             triggerRole: config.triggerRole || "user",         // "user" | "system" | "assistant"
@@ -151,11 +160,11 @@ function createSubroutineMetadata(config) {
             toolCondition: config.toolCondition, // for tool-based
             
             // Auto-queue mode
-            autoQueue: config.autoQueue || false,
+            autoQueue: config.autoQueue ?? false,
             autoQueuePrompt: config.autoQueuePrompt,
             
             // Other configs
-            useSummary: config.useSummary || false,
+            useSummary: config.useSummary ?? false,
             color: config.color || '#6366f1', // Default indigo
             useLorebooks: config.useLorebooks !== false, // Default true
             useExampleMessages: config.useExampleMessages !== false, // Default true
@@ -208,6 +217,13 @@ function registerSubroutineRoutes(router) {
                         error: 'time-based triggers require config.interval (in seconds, >= 1)'
                     });
                 }
+            }
+            
+            // Validate triggerText for non-api-based
+            if (triggerType !== 'api-based' && !config?.triggerText?.trim()) {
+                return res.status(400).json({
+                    error: 'triggerText is required for time-based and tool-based triggers'
+                });
             }
             
             // Get user's chat directory
@@ -557,10 +573,45 @@ function registerTriggerRoutes(router) {
     router.post('/triggers/:characterName/:chatName/start', async (req, res) => {
         try {
             const { characterName, chatName } = req.params;
+            const key = `${characterName}|${chatName}`;
             
-            // TODO: Start the trigger based on type
+            const chatDir = getCharacterChatDir(characterName, req.user?.directories);
+            const chatFilePath = path.join(chatDir, `${chatName}.jsonl`);
             
-            res.json({ success: true });
+            const { metadata } = await readChatFile(chatFilePath);
+            const cfg = metadata.chat_metadata.subroutine_config;
+            
+            if (activeTriggers.has(key)) {
+                return res.status(409).json({ error: 'Trigger already running' });
+            }
+            
+            if (!cfg.active) {
+                cfg.active = true;
+                metadata.chat_metadata.subroutine_config = cfg; // Update in memory
+                await writeChatFile(chatFilePath, metadata, []); // Persist active state
+            }
+            
+            if (cfg.triggerType === 'time-based') {
+                const intervalMs = cfg.interval * 1000;
+                const timer = setInterval(async () => {
+                    try {
+                        await fireSubroutineTrigger(characterName, chatName, cfg, chatFilePath, metadata);
+                    } catch (err) {
+                        console.error(`[SillyAgents] Trigger error for ${key}:`, err);
+                    }
+                }, intervalMs);
+                
+                activeTriggers.set(key, { timer, type: 'interval' });
+            } else if (cfg.triggerType === 'tool-based') {
+                // TODO: Implement tool polling
+                // Similar to time-based, but check toolCondition first
+                return res.status(501).json({ error: 'tool-based triggers not yet implemented' });
+            } else if (cfg.triggerType === 'api-based') {
+                // TODO: Mark active for webhook handling
+                activeTriggers.set(key, { type: 'api' });
+            }
+            
+            res.json({ success: true, status: 'started' });
         } catch (error) {
             console.error('[SillyAgents] Error starting trigger:', error);
             res.status(500).json({ error: error.message });
@@ -571,15 +622,142 @@ function registerTriggerRoutes(router) {
     router.post('/triggers/:characterName/:chatName/stop', async (req, res) => {
         try {
             const { characterName, chatName } = req.params;
+            const key = `${characterName}|${chatName}`;
             
-            // TODO: Stop the trigger
+            const job = activeTriggers.get(key);
+            if (job) {
+                if (job.type === 'interval') {
+                    clearInterval(job.timer);
+                }
+                activeTriggers.delete(key);
+            }
             
-            res.json({ success: true });
+            // Optionally set active=false and persist
+            const chatDir = getCharacterChatDir(characterName, req.user?.directories);
+            const chatFilePath = path.join(chatDir, `${chatName}.jsonl`);
+            const { metadata, messages } = await readChatFile(chatFilePath);
+            metadata.chat_metadata.subroutine_config.active = false;
+            await writeChatFile(chatFilePath, metadata, messages);
+            
+            res.json({ success: true, status: 'stopped' });
         } catch (error) {
             console.error('[SillyAgents] Error stopping trigger:', error);
             res.status(500).json({ error: error.message });
         }
     });
+    
+    // TODO: Add webhook route for api-based, e.g., POST /triggers/api/:characterName/:chatName
+}
+
+/**
+ * Fire the subroutine trigger: append user message, generate response, handle auto-queue
+ * @param {string} characterName
+ * @param {string} chatName
+ * @param {Object} cfg - subroutine_config
+ * @param {string} chatFilePath
+ * @param {Object} metadata
+ */
+async function fireSubroutineTrigger(characterName, chatName, cfg, chatFilePath, metadata) {
+    // Note: Requires SillyTavern internal modules for generation
+    // Adjust paths as needed; assuming plugin can require them
+    const { getStatusAsync } = require('../server/openai'); // Example: to check backend
+    const { generateOpenAIResponse } = require('../server/openai-stream'); // Or equivalent generator
+    const { getRequestPrompt } = require('../server/prompts'); // Prompt builder
+    
+    // Load current messages
+    let { messages } = await readChatFile(chatFilePath);
+    
+    // Append trigger as user message
+    const triggerMsg = {
+        name: metadata.user_name,
+        mes: cfg.triggerText || cfg.fallbackTriggerText || '(Trigger activated)',
+        is_user: true,
+        is_system: cfg.triggerRole === 'system',
+        sendDate: new Date().toISOString(),
+    };
+    messages.push(triggerMsg);
+    
+    // Build full prompt (respect configs)
+    // TODO: Fetch character card/system prompt from SillyTavern storage
+    const characterSystemPrompt = 'You are an autonomous agent.'; // Placeholder
+    
+    const promptData = {
+        messages, // Full history
+        system_prompt: characterSystemPrompt,
+        // Apply configs
+        use_lorebooks: cfg.useLorebooks,
+        use_examples: cfg.useExampleMessages,
+        // TODO: Implement summarization if useSummary
+        // e.g., if (cfg.useSummary) messages = await summarizeMessages(messages);
+    };
+    const fullPrompt = getRequestPrompt(promptData); // Assumes this builds {role, content} array
+    
+    // Check if backend supports tools/chat completions
+    const status = await getStatusAsync();
+    if (!status || !status.toolSupport) {
+        console.warn('[SillyAgents] Backend may not support tools');
+        // TODO: Warn via event or log
+    }
+    
+    // Generate response
+    const generationOptions = {
+        // User settings: max_tokens, temperature, etc. - fetch from global or user
+        tools: true, // Enable tool calling
+    };
+    const response = await generateOpenAIResponse(fullPrompt, generationOptions);
+    
+    // Parse response (assume OpenAI-like format)
+    const aiContent = response.choices[0].message.content;
+    const toolCalls = response.choices[0].message.tool_calls || [];
+    
+    // Append AI message
+    const aiMsg = {
+        name: metadata.character_name,
+        mes: aiContent,
+        is_user: false,
+        sendDate: new Date().toISOString(),
+    };
+    messages.push(aiMsg);
+    
+    // Handle tools
+    if (toolCalls.length > 0) {
+        // TODO: Execute tools (integrate with SillyTavern's tool system or custom)
+        const toolResults = await executeTools(toolCalls); // Placeholder
+        const toolResponseMsg = {
+            name: metadata.user_name,
+            mes: JSON.stringify(toolResults), // Or formatted
+            is_user: true,
+            sendDate: new Date().toISOString(),
+        };
+        messages.push(toolResponseMsg);
+        // Recurse to generate next response
+        return fireSubroutineTrigger(characterName, chatName, cfg, chatFilePath, metadata);
+    } else if (cfg.autoQueue) {
+        // Auto-queue if no tools called
+        const queueMsg = {
+            name: metadata.user_name,
+            mes: cfg.autoQueuePrompt || 'Continue your reasoning and take the next action.',
+            is_user: true,
+            sendDate: new Date().toISOString(),
+        };
+        messages.push(queueMsg);
+        // Recurse
+        return fireSubroutineTrigger(characterName, chatName, cfg, chatFilePath, metadata);
+    }
+    
+    // Save updated chat
+    await writeChatFile(chatFilePath, metadata, messages);
+}
+
+/**
+ * Placeholder for tool execution
+ * @param {Array} toolCalls
+ * @returns {Promise<Object>} Results
+ */
+async function executeTools(toolCalls) {
+    // TODO: Implement tool calling integration
+    // e.g., Call SillyTavern extensions or custom skills
+    return {}; // Stub
 }
 
 /**
@@ -611,6 +789,11 @@ function parseSkillMetadata(content) {
  */
 function generateId() {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+// Placeholder for macro routes if needed
+function registerMacroRoutes(router) {
+    // TODO: If server-side macro support is required
 }
 
 module.exports = {
