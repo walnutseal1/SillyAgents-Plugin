@@ -1,3 +1,6 @@
+# Depricated
+
+
 SillyAgents Plugin (Backend)
 This is the server-side component for SillyAgents. It provides the core logic, file management, and API endpoints required for autonomous agentic loops and skill management within SillyTavern.
 
